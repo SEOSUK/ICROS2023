@@ -305,15 +305,21 @@ TorqJ::TorqJ()
 
 
 
-  // --------- butterworth 2nd order -----------//
-
-  bw_2nd_output << 0, 0, 0;
-  bw_2nd_input << 0, 0, 0;
   error_gain << 0, 0;
 
   cut_off_freq = 2;
+  bw_2nd_output.resize(3);
+  bw_2nd_input.resize(3);
+  bw_4th_output.resize(5);
+  bw_4th_input.resize(5);
 
 
+
+  bw_2nd_output << 0, 0, 0;
+  bw_2nd_input << 0, 0, 0;
+
+  bw_4th_output << 0, 0, 0, 0, 0;
+  bw_4th_input << 0, 0, 0, 0, 0;
 }
 
 TorqJ::~TorqJ()
@@ -386,7 +392,6 @@ void TorqJ::calc_des()
       X_error_p_i[i] = X_error_p[i];
       X_PID[i] = Position_P_gain[i] * X_error_p[i] + Position_I_gain[i] * X_error_i[i] + Position_D_gain[i] * X_error_d[i];
     }
-  std::cout<<X_error_i[0]<<std::endl<<"#########################################"<<std::endl;
 
     // for(int i = 0; i<2; i++)
     // {
@@ -435,8 +440,6 @@ void TorqJ::calc_des()
 
   void TorqJ::second_order_butterworth()
 { 
-  bw_2nd_input.resize(3,1);
-  bw_2nd_output.resize(3,1);
   
   wc = tan(M_PI * cut_off_freq * time_loop);
   wc2 = wc*wc;
@@ -458,13 +461,14 @@ void TorqJ::calc_des()
   bw_2nd_input[0] = bw_2nd_input[1];
   bw_2nd_input[1] = bw_2nd_input[2];
   //---------------------------------------
+
+  std::cout<<bw_2nd_output<<std::endl<<"bw_2nd_outputbw_2nd_outputbw_2nd_outputbw_2nd_output"<<std::endl;
+
 }
 
 
   void TorqJ::fourth_order_butterworth()
 {
-  bw_4th_output.resize(4,1);
-  bw_4th_input.resize(4,1);
   
   wc = tan(M_PI * cut_off_freq * time_loop);
   wc2 = wc*wc;
@@ -495,7 +499,13 @@ void TorqJ::calc_des()
   bw_4th_input[1] = bw_4th_input[2];
   bw_4th_input[2] = bw_4th_input[3];
   bw_4th_input[3] = bw_4th_input[4];
+
+  std::cout<<bw_4th_output<<std::endl<<"bw_4th_outputbw_4th_outputbw_4th_outputbw_4th_output"<<std::endl;
+
 }
+
+
+
 
 
 void TorqJ::calc_taudes()
@@ -524,10 +534,10 @@ void TorqJ::PublishCmdNMeasured()
   joint_command_pub_.publish(joint_cmd);
 
   joint_measured.header.stamp = ros::Time::now();
-  joint_measured.position.push_back(measured_effort);
-  joint_measured.position.push_back(X_error_p[0]);
+  joint_measured.position.push_back(bw_4th_output[1]);
+  joint_measured.position.push_back(bw_4th_output[4]);
   joint_measured.velocity.push_back(bw_2nd_output[2]);
-  joint_measured.velocity.push_back(bw_4th_output[4]);
+  joint_measured.velocity.push_back(X_error_p[0]);
   joint_measured_pub_.publish(joint_measured);
 }
 

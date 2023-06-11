@@ -93,8 +93,8 @@ class TorqJ
 
 
 //--for butterworth--//
-  Eigen::VectorXd bw_2nd_output;
-  Eigen::VectorXd bw_2nd_input;
+  Eigen::Vector3d bw_2nd_output;
+  Eigen::Vector3d bw_2nd_input;
   Eigen::VectorXd bw_4th_output;
   Eigen::VectorXd bw_4th_input;
 
@@ -120,7 +120,6 @@ class TorqJ
   double a0_2nd;
   double a1_2nd;
   double a2_2nd;
-
 
   //V_gain << 1,1;
 
