@@ -25,8 +25,10 @@ find_package(catkin REQUIRED COMPONENTS
 # catkin_python_setup()
 add_message_files(
   FILES
+  Torqbian.msg
   DasomDynamixel.msg
 )
+
 
 add_service_files(
   FILES
@@ -50,6 +52,7 @@ catkin_package(
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
+  include
 )
 
 
@@ -65,3 +68,15 @@ target_link_libraries(velocity_controller.cpp ${catkin_LIBRARIES})
 add_executable(velocity_tracking.cpp src/velocity_tracking.cpp)
 add_dependencies(velocity_tracking.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(velocity_tracking.cpp ${catkin_LIBRARIES})
+
+add_executable(Admittance_TwoLink.cpp src/Admittance_TwoLink.cpp)
+add_dependencies(Admittance_TwoLink.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(Admittance_TwoLink.cpp ${catkin_LIBRARIES})
+
+add_executable(torque_jacobian.cpp src/torque_jacobian.cpp)
+add_dependencies(torque_jacobian.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(torque_jacobian.cpp ${catkin_LIBRARIES})
+
+add_executable(torque_jacobian_velocity.cpp src/torque_jacobian_velocity.cpp)
+add_dependencies(torque_jacobian_velocity.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(torque_jacobian_velocity.cpp ${catkin_LIBRARIES})
