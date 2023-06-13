@@ -1,8 +1,8 @@
 <launch>
   <arg name="robot_name"      default="dasom"/>
-  <arg name="X_P_gain"          default="0.49999"/>
+  <arg name="X_P_gain"          default="1.22"/>
   <arg name="X_I_gain"          default="0"/>
-  <arg name="X_D_gain"          default="0.005"/>
+  <arg name="X_D_gain"          default="0.112"/>
 
   <arg name="Y_P_gain"          default="0"/>
   <arg name="Y_I_gain"          default="0"/>
@@ -15,6 +15,15 @@
   <arg name="VY_P_gain"         default="0"/>
   <arg name="VY_I_gain"         default="0"/>
   <arg name="VY_D_gain"         default="0"/>
+
+  <arg name="Cut_Off_Freq"         default="0.1"/>
+  <arg name="Error_Gain"           default="3"/>
+  <arg name="cut_off_freq_4th"     default="50"/>
+  <arg name="damping_const"        default="0.1"/>
+
+<!--static friction parameters-->
+  <arg name="stiction_alpha"       default="13.0"/>
+  <arg name="stiction_k"           default="1.3"/>
 
 
 
@@ -34,6 +43,16 @@
   <param name="VY_P_gain"        value="$(arg VY_P_gain)"/>
   <param name="VY_I_gain"        value="$(arg VY_I_gain)"/>
   <param name="VY_D_gain"        value="$(arg VY_D_gain)"/>
+
+  <param name="Cut_Off_Freq"        value="$(arg Cut_Off_Freq)"/>
+  <param name="Error_Gain"        value="$(arg Error_Gain)"/>
+  <param name="cut_off_freq_4th"        value="$(arg cut_off_freq_4th)"/>
+  <param name="damping_const"        value="$(arg damping_const)"/>
+
+
+  <param name="stiction_alpha"        value="$(arg stiction_alpha)"/>
+  <param name="stiction_k"            value="$(arg stiction_k)"/>
+
 
   <node name="torque_jacobian" pkg="two_link" type="torque_jacobian.cpp" required="true" output="screen"/>
 

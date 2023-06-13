@@ -90,19 +90,28 @@ class TorqJ
   Eigen::Vector2d tau_des;
   Eigen::Vector2d tau_gravity; //중력에 의해 조인트에 가해지는 토크
   Eigen::Vector2d tau_loop;
+  Eigen::Vector2d velocity_measured;
+  Eigen::Vector2d stiction_gain;
+
 
 
 //--for butterworth--//
   Eigen::Vector3d bw_2nd_output;
   Eigen::Vector3d bw_2nd_input;
-  Eigen::VectorXd bw_4th_output;
-  Eigen::VectorXd bw_4th_input;
+  Eigen::Vector3d bw_4th_output;
+  Eigen::Vector3d bw_4th_input;
+  Eigen::Vector2d velocity_filtered;
+  
 
   double wc;
   double wc2;
   double wc4;
   double wc3;
+  double wc_4th;
+  double wc2_4th;
+
   double cut_off_freq;
+  double cut_off_freq_4th;
   double b0_4th;
   double b1_4th;
   double b2_4th;
@@ -120,8 +129,24 @@ class TorqJ
   double a0_2nd;
   double a1_2nd;
   double a2_2nd;
+  double damping_const;
 
+  float Cut_Off_Freq;
+  float Error_Gain;
   //V_gain << 1,1;
+
+//--for friction_compen_pulse--//
+  double k_fc;
+  double Delta;
+  double Pd;
+  double fc;
+  double w0;
+  Eigen::Vector2d u_fc;
+
+//--stiction_compensator--//
+  double stiction_alpha;
+  double stiction_k;
+
 
   void calc_des();
   void calc_taudes();
@@ -210,7 +235,9 @@ class TorqJ
   void jointCallback(const sensor_msgs::JointState::ConstPtr &msg);
   void second_order_butterworth();
   void fourth_order_butterworth();
-
+  void friction_compen_pulse();
+  void second_order_butterworth_();
+  void stiction_gravity_compensator();
   //void EEpositionCallback(const dynamixel_workbench_msgs::EECommand::Request &req, dynamixel_workbench_msgs::EECommand::Response &res);
   //void goaljointCallback(const sensor_msgs::JointState::ConstPtr &msg);
 
