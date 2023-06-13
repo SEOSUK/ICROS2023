@@ -22,7 +22,8 @@
   double time_i = 0;
   double measured_effort = 0;
   int i = 0;
-
+  double l1 = 0.12409;
+  double l2 = 0.108;
 
 TorqJ::TorqJ()
 : node_handle_(""),
@@ -30,9 +31,11 @@ TorqJ::TorqJ()
 {
   robot_name_ = node_handle_.param<std::string>("robot_name", "dasom");
 
-  X_P_gain = node_handle_.param<float>("X_P_gain",1);
-  X_I_gain = node_handle_.param<float>("X_I_gain",1);
-  X_D_gain = node_handle_.param<float>("X_D_gain",1);
+  position_p_gain = node_handle_.param<float>("position_p_gain",1);
+  position_i_gain = node_handle_.param<float>("position_i_gain",1);
+  position_d_gain = node_handle_.param<float>("position_d_gain",1);
+  Cut_Off_Freq = node_handle_.param<float>("Cut_Off_Freq", 1);
+
 
   Y_P_gain = node_handle_.param<float>("Y_P_gain",1);
   Y_I_gain = node_handle_.param<float>("Y_I_gain",1);
@@ -45,7 +48,6 @@ TorqJ::TorqJ()
   VY_P_gain = node_handle_.param<float>("VY_P_gain",1);
   VY_I_gain = node_handle_.param<float>("VY_I_gain",1);
   VY_D_gain = node_handle_.param<float>("VY_D_gain",1);  
-  Cut_Off_Freq = node_handle_.param<float>("Cut_Off_Freq", 1);
   Error_Gain = node_handle_.param<float>("Error_Gain", 1);
   cut_off_freq_4th = node_handle_.param<float>("cut_off_freq_4th", 1);
   damping_const = node_handle_.param<float>("damping_const", 1);
@@ -59,13 +61,13 @@ TorqJ::TorqJ()
   initPublisher();
   initSubscriber();
 
-  Position_P_gain << X_P_gain, Y_P_gain;
-  Position_I_gain << X_I_gain, Y_I_gain;
-  Position_D_gain << X_D_gain, Y_D_gain;
+// Position_P_gain << X_P_gain, Y_P_gain;
+// Position_I_gain << X_I_gain, Y_I_gain;
+// Position_D_gain << X_D_gain, Y_D_gain;
 
-  Velocity_P_gain << VX_P_gain, VY_P_gain;
-  Velocity_I_gain << VX_I_gain, VY_I_gain;
-  Velocity_D_gain << VX_D_gain, VY_D_gain;
+// Velocity_P_gain << VX_P_gain, VY_P_gain;
+// Velocity_I_gain << VX_I_gain, VY_I_gain;
+// Velocity_D_gain << VX_D_gain, VY_D_gain;
 
   // std::cout<<V_gain<<std::endl<<"---------------------------------------"<<std::endl;
 
@@ -73,26 +75,56 @@ TorqJ::TorqJ()
 
 
 
-  error_gain << 0, 0;
+  angle_ref << 0, 0;
+  X_cmd << 0, 0;
 
-  cut_off_freq = Cut_Off_Freq;
-  bw_2nd_output.resize(3);
-  bw_2nd_input.resize(3);
+  Q_M.resize(4);
+  Q_M_dot.resize(4);
+  Q_M_2.resize(4);
+  Q_M_dot_2.resize(4);  
+  Q_M_A.resize(4, 4);
+  Q_M_B.resize(4, 1);
+  Q_M_C.resize(4);
+
+  Cut_Off_Freq2 = Cut_Off_Freq * Cut_Off_Freq;
+
+   Q_M << 0, 0, 0, 0;
+   Q_M_2 << 0, 0, 0, 0;
+
+   Q_M_A << 0, 1, 0, 0,
+           0, 0, 1, 0,
+           0, 0, 0, 1,
+           - position_i_gain * Cut_Off_Freq2 / position_d_gain, - (position_p_gain * Cut_Off_Freq2 + sqrt(2) * position_i_gain * Cut_Off_Freq) / position_d_gain, - (position_d_gain * Cut_Off_Freq2 + sqrt(2) * position_p_gain * Cut_Off_Freq + position_i_gain) / position_d_gain, - (position_p_gain + sqrt(2) * position_d_gain * Cut_Off_Freq) / position_d_gain;
+
+   Q_M_B << 0, 0, 0, 1;
+
+   Q_M_C << Cut_Off_Freq2* position_i_gain / position_d_gain, Cut_Off_Freq2* position_p_gain / position_d_gain, Cut_Off_Freq2, Cut_Off_Freq2* polar_moment_1 / position_d_gain;
 
 
 
+  Q_angle_d.resize(2);
+  Q_angle_d_dot.resize(2);
+  Q_angle_d_2.resize(2);
+  Q_angle_d_dot_2.resize(2);  
+  Q_angle_d_A.resize(2, 2);
+  Q_angle_d_B.resize(2);
+  Q_angle_d_C.resize(2);
 
-  bw_2nd_output << 0, 0, 0;
-  bw_2nd_input << 0, 0, 0;
 
-  bw_4th_output << 0, 0, 0;
-  bw_4th_input << 0, 0, 0;
 
-  u_fc << 0, 0;
-  velocity_measured << 0, 0;
-  velocity_filtered << 0, 0;
-  stiction_gain << 0, 0;
+  Q_angle_d << 0, 0;
+  Q_angle_d_2 << 0, 0;
+  Q_angle_d_A << 0, 1,
+               -Cut_Off_Freq2, -sqrt(2) * Cut_Off_Freq;
 
+  Q_angle_d_B << 0, Cut_Off_Freq2;
+
+  Q_angle_d_C << 1, 0;
+
+  Q_M = Q_M.transpose();
+  Q_angle_d = Q_angle_d.transpose();
+  Q_M_2 = Q_M.transpose();
+  Q_angle_d_2 = Q_angle_d.transpose();
 
 }
 
@@ -120,6 +152,7 @@ void TorqJ::commandCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
   // X_command, Y_command 값 받아오기(O)
 //  X_cmd[0] = msg->position.at(0);
+  X_cmd[0] = msg->position.at(0);
   X_cmd[1] = msg->position.at(1);
 
 }
@@ -144,67 +177,60 @@ void TorqJ::jointCallback(const sensor_msgs::JointState::ConstPtr &msg)
   // Jacobian transpose()
   JT = J.transpose();
   ///////////////////////////////////////////////////////////////////////
-  theta_dot << msg->velocity.at(0), msg->velocity.at(1);
-
-  V_measured = J * theta_dot;
-  /////////////////////////////////////////////////////////////////////// 이 정도 계산은 어떤지?
 }
 
 
 void TorqJ::calc_des()
 {
-  double I_limit = 0.1;
-
-  //PID Control 실시 (위치 오차로 인한 전류값)
-    for(int i = 0; i<2; i++)
-    {
-      X_error_p[i] = X_cmd[i] - angle_measured[i];
-      X_error_i[i] = X_error_i[i] + X_error_p[i] * time_loop;
-
-
-      if (X_error_p[i] - X_error_p_i[i] != 0) X_error_d[i] = (X_error_p[i] - X_error_p_i[i]) / time_loop;
-      X_error_p_i[i] = X_error_p[i];
-      X_PID[i] = Position_P_gain[i] * X_error_p[i] + Position_I_gain[i] * X_error_i[i] + Position_D_gain[i] * X_error_d[i];
-    }\
-    
-
-    // for(int i = 0; i<2; i++)
-    // {
-    //   V_error_p[i] = X_PID[i] - V_measured[i]; 
-    //   V_error_i[i] = V_error_i[i] + V_error_p[i] * time_loop;
-    //   if (V_error_p[i] - V_error_p_i[i] != 0) V_error_d[i] = (V_error_p[i] - V_error_p_i[i]) / time_loop;
-    //   V_error_p_i[i] = V_error_p[i];
-    //   V_PID[i] = Velocity_P_gain[i] * V_error_p[i] + Velocity_I_gain[i] * V_error_i[i] + Velocity_D_gain[i] * V_error_d[i];
-    // }
-
-
 
 
 //-------커맨드 생성기------//
-  i++;
-  double Amp = M_PI /12;
-  double period = 8;
-  X_cmd[0] = Amp * sin(2* M_PI * 0.005 * i / period) + M_PI/2;
-
-
-//--------버터워스---------//
-
-  second_order_butterworth();
-  stiction_gravity_compensator();
+  // i++;
+  // double Amp = 0.05;
+  // double period = 8;
+  // X_cmd[0] = Amp * (sin(2* M_PI * 0.005 * i / period) + 1);
+  // X_cmd[1] = 0.2;
 //--------------------------------------
-  error_gain[0] = bw_2nd_output[2] * Error_Gain;
 
   JT.resize(2,2);
-  V_PID.resize(2,1);
 
-//  tau_loop = JT * V_PID; onelink
-	tau_loop = X_PID;
-	tau_loop[1] = 0;
 
+//-----Inverse Kinematics-----//  
+  angle_ref[1] = acos((pow(X_cmd[0],2) + pow(X_cmd[1], 2) - pow(l1, 2)- pow(l2, 2)) / (2 * l1 * l2));
+  angle_ref[0] = atan(X_cmd[1] / X_cmd[0]) - atan(l2* sin(angle_ref[1]) / (l1 + l2 * cos(angle_ref[1])));
+  FK_EE_pos = EE_pos(angle_measured[0], angle_measured[1]);
+
+//  std::cout<<angle_measured<<std::endl<<"angle_measuredangle_measured"<<std::endl;
+//  std::cout<<angle_ref<<std::endl<<"angle_refangle_refangle_ref"<<std::endl;
+//  std::cout<<X_cmd - FK_EE_pos<<std::endl<<"POSITIONERROR_POSITIONERROR"<<std::endl;
+  DoB();
+}
+
+void TorqJ::DoB()
+{
+  for (int i =0; i<2; i++)
+{
+  //State space (Gn)//
+  Q_M_dot = Q_M_A * Q_M + Q_M_B * angle_measured[i];
+  Q_M += Q_M_dot * time_loop;
+  angle_d_hat[i] = Q_M_C.dot(Q_M);
+
+  //State space(theta_d) //
+  Q_angle_d_dot = Q_angle_d_A * Q_angle_d + Q_angle_d_B * angle_d[i];
+  Q_angle_d += Q_angle_d_dot * time_loop;
+  angle_d_lpf[i] = Q_angle_d_C.dot(Q_angle_d);
+
+
+  d_hat[i] = angle_d_hat[i] - angle_d_lpf[i]; //d_hat: 추정된 외란
+  angle_d[i] = angle_ref[i] - d_hat[i];
 }
 
 
-  void TorqJ::second_order_butterworth()
+  std::cout<<angle_d_lpf<<std::endl<<"angle_d_lpfangle_d_lpf"<<std::endl;
+  std::cout<<angle_d<<std::endl<<"angle_dangle_dangle_d"<<std::endl;
+
+}
+/*  void TorqJ::second_order_butterworth()
 { 
   
   wc = tan(M_PI * cut_off_freq * time_loop);
@@ -231,8 +257,8 @@ void TorqJ::calc_des()
 
 
 }
-
-
+*/
+/*
   void TorqJ::stiction_gravity_compensator()
 {
   //stiction_gain[0] = stiction_k * X_error_p[0] / exp(stiction_alpha * velocity_measured[0]);    //exponential
@@ -246,7 +272,8 @@ void TorqJ::calc_des()
   std::cout<<stiction_gain[0]<<"tau_gravitau_gravitau_gravitau_gravitau_gravitau_gravitau_gravitau_gravitau_gravi"<<std::endl;
 
 }
-
+*/
+/*
   void TorqJ::second_order_butterworth_()
 { 
   
@@ -274,15 +301,10 @@ void TorqJ::calc_des()
   //---------------------------------------
 
 }
+*/
 
-
-
-
-
-
+/*
 int k=0;
-
-
   void TorqJ::friction_compen_pulse()
 {  
   k_fc = 1.0;
@@ -300,12 +322,11 @@ int k=0;
   u_fc[0] = ( 1 + Pd ) * pow(Pd,k) * w0;
 
 }
-
+*/
 
 
 void TorqJ::calc_taudes()
 {
-
 //  tau_des = tau_loop + tau_gravity + u_fc;    //  펄스
   tau_des = tau_loop + tau_gravity + stiction_gain - damping_const * velocity_measured;              //  로우패스필터
 
@@ -321,8 +342,8 @@ void TorqJ::PublishCmdNMeasured()
 
   // tau_des를 publish
   joint_cmd.header.stamp = ros::Time::now();
-  joint_cmd.position.push_back(X_cmd[0]); // 커맨드포지션
-  joint_cmd.position.push_back(0); // 측정포지션
+  joint_cmd.position.push_back(angle_ref[0]); // 커맨드포지션
+  joint_cmd.position.push_back(angle_ref[1]); // 측정포지션
   joint_cmd.velocity.push_back(X_error_p[0]); // 포지션 에러
   joint_cmd.velocity.push_back(bw_2nd_output[2]); // 포지션 에러 필터값
   joint_cmd.effort.push_back(tau_des[0]); // joint space
@@ -330,8 +351,8 @@ void TorqJ::PublishCmdNMeasured()
   joint_command_pub_.publish(joint_cmd);
 
   joint_measured.header.stamp = ros::Time::now();
-  joint_measured.position.push_back(stiction_gain[0]); // 포지션 에러값
-  joint_measured.position.push_back(tau_des[0] - stiction_gain[0]); // 포지션 에러 필터값 
+  joint_measured.position.push_back(angle_ref[0]); // 포지션 에러값
+  joint_measured.position.push_back(angle_d[0]); // 포지션 에러 필터값 
   joint_measured.velocity.push_back(tau_des[0] + stiction_gain[0]); // 
   joint_measured.velocity.push_back(u_fc[0] + tau_des[0]);
   joint_measured_pub_.publish(joint_measured);
