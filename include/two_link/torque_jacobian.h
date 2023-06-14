@@ -55,6 +55,7 @@ class TorqJ
   double offset_1 = 0;
   double offset_2 = 0; 
 
+  Eigen::Vector2d X_ref;
   Eigen::Vector2d X_cmd;
   Eigen::Vector2d X_measured;
   Eigen::Vector2d V_measured;
@@ -126,8 +127,44 @@ class TorqJ
   
 //--end--//
 
+//--External_Force_Estimation--//
+  Eigen::Vector2d tau_measured;
+  Eigen::Vector2d hysteresis_max;
+  Eigen::Vector2d hysteresis_min;
+  Eigen::Vector2d tau_ext;
+  Eigen::Vector2d Force_ext;
+  Eigen::Matrix2d JTI;
 
-  
+//--Admittance Control--//
+  Eigen::Matrix2d A_x;
+  Eigen::Vector2d B_x;
+  Eigen::Vector2d C_x;
+  Eigen::Vector2d D_x;
+
+  Eigen::Matrix2d A_y;
+  Eigen::Vector2d B_y;
+  Eigen::Vector2d C_y;
+  Eigen::Vector2d D_y;
+
+  Eigen::Vector2d virtual_mass;
+  Eigen::Vector2d virtual_damper;
+  Eigen::Vector2d virtual_spring;
+
+  Eigen::Vector2d X_from_model_matrix;
+  Eigen::Vector2d X_dot_from_model_matrix;
+  Eigen::Vector2d Y_from_model_matrix;
+  Eigen::Vector2d Y_dot_from_model_matrix;
+  Eigen::Vector2d position_from_model;
+
+  double virtual_mass_x;
+  double virtual_damper_x;
+  double virtual_spring_x;
+
+
+  double virtual_mass_y;
+  double virtual_damper_y;
+  double virtual_spring_y;
+
 
 
 //--for butterworth--//
@@ -136,6 +173,7 @@ class TorqJ
   Eigen::Vector3d bw_4th_output;
   Eigen::Vector3d bw_4th_input;
   Eigen::Vector2d velocity_filtered;
+
 
 
 
@@ -275,6 +313,8 @@ class TorqJ
   void second_order_butterworth_();
   void stiction_gravity_compensator();
   void DoB();
+  void Calc_Ext_Force();
+  void Admittance_control();
   //void EEpositionCallback(const dynamixel_workbench_msgs::EECommand::Request &req, dynamixel_workbench_msgs::EECommand::Response &res);
   //void goaljointCallback(const sensor_msgs::JointState::ConstPtr &msg);
 

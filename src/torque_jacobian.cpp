@@ -20,10 +20,10 @@
   double time_loop = 0;
   double time_f = 0;
   double time_i = 0;
-  double measured_effort = 0;
   int i = 0;
   double l1 = 0.12409;
   double l2 = 0.108;
+  double Kt = 0.0044;
 
 TorqJ::TorqJ()
 : node_handle_(""),
@@ -55,19 +55,23 @@ TorqJ::TorqJ()
   stiction_alpha = node_handle_.param<double>("stiction_alpha", 1);
   stiction_k = node_handle_.param<double>("stiction_k", 1);
 
+  virtual_mass_x = node_handle_.param<double>("virtual_mass_x",1);
+  virtual_damper_x = node_handle_.param<double>("virtual_damper_x",1);
+  virtual_spring_x = node_handle_.param<double>("virtual_spring_x",1);
+
+  virtual_mass_y = node_handle_.param<double>("virtual_mass_y",1);
+  virtual_damper_y = node_handle_.param<double>("virtual_damper_y",1);
+  virtual_spring_y = node_handle_.param<double>("virtual_spring_y",1);
+
   /************************************************************
   ** Initialize ROS Subscribers and Clients
   ************************************************************/
   initPublisher();
   initSubscriber();
 
-// Position_P_gain << X_P_gain, Y_P_gain;
-// Position_I_gain << X_I_gain, Y_I_gain;
-// Position_D_gain << X_D_gain, Y_D_gain;
-
-// Velocity_P_gain << VX_P_gain, VY_P_gain;
-// Velocity_I_gain << VX_I_gain, VY_I_gain;
-// Velocity_D_gain << VX_D_gain, VY_D_gain;
+  virtual_mass << virtual_mass_x, virtual_mass_y;
+  virtual_damper << virtual_damper_x, virtual_damper_y;
+  virtual_spring << virtual_spring_x, virtual_spring_y;
 
   // std::cout<<V_gain<<std::endl<<"---------------------------------------"<<std::endl;
 
@@ -76,7 +80,7 @@ TorqJ::TorqJ()
 
 
   angle_ref << 0, 0;
-  X_cmd << 0.2, 0.1;
+  X_ref << 0.2, 0.1;
 
 
 
@@ -144,6 +148,41 @@ TorqJ::TorqJ()
   // Q_M_2 = Q_M.transpose();
   // Q_angle_d_2 = Q_angle_d.transpose();
 
+
+
+//////////////////////////////////////////
+////////////////Admittance////////////////
+//////////////////////////////////////////
+	A_x <<                0, 									1,
+		  - virtual_spring[0]/virtual_mass[0], - virtual_damper[0]/virtual_mass[0];
+
+	B_x << 0, 1/virtual_mass[0];
+
+	C_x << 1, 0;
+
+	D_x << 0, 0;
+
+//-----State Space Representation----//
+	A_y <<               0, 									1,
+		  - virtual_spring[1]/virtual_mass[1], - virtual_damper[1]/virtual_mass[1];
+
+	B_y << 0, 1/virtual_mass[1];
+
+	C_y << 1, 0;
+
+	D_y << 0, 0;
+
+	X_from_model_matrix << 0, 0;
+	X_dot_from_model_matrix << 0, 0;
+
+	Y_from_model_matrix << 0, 0;
+	Y_dot_from_model_matrix << 0, 0;
+
+
+//잘수정해보자//
+  hysteresis_max << 0, 0;
+  hysteresis_min << 0, 0;
+    
 }
 
 TorqJ::~TorqJ()
@@ -170,8 +209,8 @@ void TorqJ::commandCallback(const sensor_msgs::JointState::ConstPtr &msg)
 {
   // X_command, Y_command 값 받아오기(O)
 //  X_cmd[0] = msg->position.at(0);
-  X_cmd[0] = msg->position.at(0);
-  X_cmd[1] = msg->position.at(1);
+  X_ref[0] = msg->position.at(0);
+  X_ref[1] = msg->position.at(1);
 
 }
 
@@ -188,14 +227,75 @@ void TorqJ::jointCallback(const sensor_msgs::JointState::ConstPtr &msg)
   angle_measured[0] = msg->position.at(0);
   angle_measured[1] = msg->position.at(1);
 
-  measured_effort = msg->effort.at(0);
+  tau_measured[0] = msg->effort.at(0) * Kt;    //Kt = 0.0044 from 자시
+  tau_measured[1] = msg->effort.at(0) * Kt;    //Kt = 0.0044 from 자시
+
   velocity_measured[0] = msg->velocity.at(0);
   // Jacobian 계산하기()
   J = Jacobian(angle_measured[0], angle_measured[1]);
   // Jacobian transpose()
   JT = J.transpose();
-  ///////////////////////////////////////////////////////////////////////
+  JTI = J.inverse();
 }
+
+
+
+
+
+void TorqJ::Calc_Ext_Force()
+{
+
+  //---Dead Zone by hysteresis---//
+  if (tau_measured[0] <= hysteresis_max[0] && tau_measured[0] >= hysteresis_min[0]) tau_measured[0] = 0;
+  else if(tau_measured[0] > hysteresis_max[0]) tau_measured[0] -= hysteresis_max[0];
+  else if(tau_measured[0] < hysteresis_min[0]) tau_measured[0] -= hysteresis_min[0];
+
+  if (tau_measured[1] <= hysteresis_max[1] && tau_measured[1] >= hysteresis_min[1]) tau_measured[1] = 0;
+  else if(tau_measured[1] > hysteresis_max[1]) tau_measured[1] -= hysteresis_max[1];
+  else if(tau_measured[1] < hysteresis_min[1]) tau_measured[1] -= hysteresis_min[1];
+
+
+  //---gravity model---//
+   	 tau_gravity << (mass1 * CoM1 * cos(angle_measured[0]) + mass2 * Link1 * cos(angle_measured[0]) + mass2 * CoM2 * cos(angle_measured[0] + angle_measured[1])) * 9.81 - offset_1,
+ 	 			          	mass2 * CoM2 * cos(angle_measured[0] + angle_measured[1]) * 9.81 - offset_2;
+
+  //---Calc Force_ext---//
+  tau_ext = tau_measured - tau_gravity;
+
+  Force_ext = JTI * tau_ext;
+
+}
+
+void TorqJ::Admittance_control()
+{
+	// X 방향 admittance model 적용--------------------------------
+	X_dot_from_model_matrix = A_x * X_from_model_matrix + B_x * Force_ext[0];
+
+	X_from_model_matrix = X_from_model_matrix + X_dot_from_model_matrix * time_loop;
+
+	position_from_model[0] = X_from_model_matrix[0];
+
+	X_cmd[0] = X_ref[0] - position_from_model[0];
+
+	//----------------------------------------------------------------
+	// Y 방향 admittance model 적용--------------------------------
+	Y_dot_from_model_matrix = A_y * Y_from_model_matrix + B_y * Force_ext[1];
+
+	Y_from_model_matrix = Y_from_model_matrix + Y_dot_from_model_matrix * time_loop;
+
+	position_from_model[1] = Y_from_model_matrix[0];
+
+	X_cmd[1] = X_ref[1] - position_from_model[1];
+  
+}
+
+/////////////////////////////////////////////////////
+//자신있다? 이 밑으로 X_ref 말고 X_cmd로 바꾸도록 하자//
+/////////////////////////////////////////////////////
+//1. hysteresis max min 파라미터 맞추기
+//2. 외력추정 확인
+//3. Admittance(토픽만) + virtual m d k 상수조절
+//4. 어드미턴스 실시
 
 
 void TorqJ::calc_des()
@@ -206,17 +306,16 @@ void TorqJ::calc_des()
    i++;
    double Amp = 0.08;
    double period = 8;
-   X_cmd[0] = Amp * (sin(2* M_PI * 0.005 * i / period) + 1);
-   X_cmd[1] = 0.15;
+   X_ref[0] = Amp * (sin(2* M_PI * 0.005 * i / period) + 1);
+   X_ref[1] = 0.15;
 //--------------------------------------
 
   JT.resize(2,2);
 
 
 //-----Inverse Kinematics-----//  
-  angle_ref[1] = acos((pow(X_cmd[0],2) + pow(X_cmd[1], 2) - pow(l1, 2)- pow(l2, 2)) / (2 * l1 * l2));
-  angle_ref[0] = atan(X_cmd[1] / X_cmd[0]) - atan(l2* sin(angle_ref[1]) / (l1 + l2 * cos(angle_ref[1])));
-  FK_EE_pos = EE_pos(angle_measured[0], angle_measured[1]);
+  angle_ref[1] = acos((pow(X_ref[0],2) + pow(X_ref[1], 2) - pow(l1, 2)- pow(l2, 2)) / (2 * l1 * l2));
+  angle_ref[0] = atan(X_ref[1] / X_ref[0]) - atan(l2* sin(angle_ref[1]) / (l1 + l2 * cos(angle_ref[1])));
 
   DoB();
 }
@@ -373,6 +472,7 @@ void TorqJ::calc_taudes()
   ROS_WARN("update!");
 }
 
+
 void TorqJ::PublishCmdNMeasured()
 {
   sensor_msgs::JointState joint_cmd;
@@ -391,9 +491,9 @@ void TorqJ::PublishCmdNMeasured()
 
   joint_measured.header.stamp = ros::Time::now();
   joint_measured.position.push_back(FK_EE_pos[0]); // 포지션 에러값
-  joint_measured.position.push_back(X_cmd[0]); // 포지션 에러 필터값 
+  joint_measured.position.push_back(X_ref[0]); // 포지션 에러 필터값 
   joint_measured.velocity.push_back(FK_EE_pos[1]); // 
-  joint_measured.velocity.push_back(X_cmd[1]);
+  joint_measured.velocity.push_back(X_ref[1]);
   joint_measured_pub_.publish(joint_measured);
 }
 
