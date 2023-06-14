@@ -9,7 +9,7 @@
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/String.h>
 #include <dynamixel_workbench_msgs/DasomDynamixel.h>
-#include <two_link/Torqbian.h>
+//#include <two_link/Torqbian.h>
 #include <dynamixel_workbench_msgs/EECommand.h>
 
 #define PI 3.14159256359
@@ -107,6 +107,7 @@ class TorqJ
   double polar_moment_1;
   double polar_moment_2;
   double Cut_Off_Freq2;
+
   Eigen::Vector4d Q_M;
   Eigen::Vector4d Q_M_dot;
   Eigen::Vector4d Q_M_2;
@@ -280,4 +281,3 @@ class TorqJ
 };
 
 #endif //TorqJ_H_
-

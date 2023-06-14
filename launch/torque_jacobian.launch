@@ -5,7 +5,7 @@
   <arg name="position_i_gain"          default="0"/>
   <arg name="position_d_gain"          default="5"/>
   <arg name="polar_moment"             default="0.027"/>
-  <arg name="Cut_Off_Freq"             default="30"/>
+  <arg name="Cut_Off_Freq"             default="5"/>
 
 <!--end-->
 
@@ -65,6 +65,6 @@
 
 
 
-  <node name="torque_jacobian" pkg="two_link" type="torque_jacobian.cpp" required="true" output="screen"/>
+  <node name="torque_jacobian" pkg="two_link" type="torque_jacobian" required="true" output="screen"/>
 
 </launch>

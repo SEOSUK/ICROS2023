@@ -31,29 +31,29 @@ TorqJ::TorqJ()
 {
   robot_name_ = node_handle_.param<std::string>("robot_name", "dasom");
 
-  position_p_gain = node_handle_.param<float>("position_p_gain",1);
-  position_i_gain = node_handle_.param<float>("position_i_gain",1);
-  position_d_gain = node_handle_.param<float>("position_d_gain",1);
-  Cut_Off_Freq = node_handle_.param<float>("Cut_Off_Freq", 1);
+  position_p_gain = node_handle_.param<double>("position_p_gain",1);
+  position_i_gain = node_handle_.param<double>("position_i_gain",1);
+  position_d_gain = node_handle_.param<double>("position_d_gain",1);
+  Cut_Off_Freq = node_handle_.param<double>("Cut_Off_Freq", 1);
 
 
-  Y_P_gain = node_handle_.param<float>("Y_P_gain",1);
-  Y_I_gain = node_handle_.param<float>("Y_I_gain",1);
-  Y_D_gain = node_handle_.param<float>("Y_D_gain",1);
+  Y_P_gain = node_handle_.param<double>("Y_P_gain",1);
+  Y_I_gain = node_handle_.param<double>("Y_I_gain",1);
+  Y_D_gain = node_handle_.param<double>("Y_D_gain",1);
 
-  VX_P_gain = node_handle_.param<float>("VX_P_gain",1);
-  VX_I_gain = node_handle_.param<float>("VX_I_gain",1);
-  VX_D_gain = node_handle_.param<float>("VX_D_gain",1);
+  VX_P_gain = node_handle_.param<double>("VX_P_gain",1);
+  VX_I_gain = node_handle_.param<double>("VX_I_gain",1);
+  VX_D_gain = node_handle_.param<double>("VX_D_gain",1);
 
-  VY_P_gain = node_handle_.param<float>("VY_P_gain",1);
-  VY_I_gain = node_handle_.param<float>("VY_I_gain",1);
-  VY_D_gain = node_handle_.param<float>("VY_D_gain",1);  
-  Error_Gain = node_handle_.param<float>("Error_Gain", 1);
-  cut_off_freq_4th = node_handle_.param<float>("cut_off_freq_4th", 1);
-  damping_const = node_handle_.param<float>("damping_const", 1);
+  VY_P_gain = node_handle_.param<double>("VY_P_gain",1);
+  VY_I_gain = node_handle_.param<double>("VY_I_gain",1);
+  VY_D_gain = node_handle_.param<double>("VY_D_gain",1);  
+  Error_Gain = node_handle_.param<double>("Error_Gain", 1);
+  cut_off_freq_4th = node_handle_.param<double>("cut_off_freq_4th", 1);
+  damping_const = node_handle_.param<double>("damping_const", 1);
 
-  stiction_alpha = node_handle_.param<float>("stiction_alpha", 1);
-  stiction_k = node_handle_.param<float>("stiction_k", 1);
+  stiction_alpha = node_handle_.param<double>("stiction_alpha", 1);
+  stiction_k = node_handle_.param<double>("stiction_k", 1);
 
   /************************************************************
   ** Initialize ROS Subscribers and Clients
@@ -76,44 +76,60 @@ TorqJ::TorqJ()
 
 
   angle_ref << 0, 0;
-  X_cmd << 0, 0;
+  X_cmd << 0.2, 0.1;
 
-  Q_M.resize(4);
-  Q_M_dot.resize(4);
-  Q_M_2.resize(4);
-  Q_M_dot_2.resize(4);  
-  Q_M_A.resize(4, 4);
-  Q_M_B.resize(4, 1);
-  Q_M_C.resize(4);
+
+
+  // Q_M.resize(4);
+  // Q_M_dot.resize(4);
+  // Q_M_2.resize(4);
+  // Q_M_dot_2.resize(4);  
+  // Q_M_A.resize(4, 4);
+  // Q_M_B.resize(4, 1);
+  // Q_M_C.resize(4);
 
   Cut_Off_Freq2 = Cut_Off_Freq * Cut_Off_Freq;
+
+  angle_d << 0, 0;
+  angle_d_lpf << 0, 0;
 
    Q_M << 0, 0, 0, 0;
    Q_M_2 << 0, 0, 0, 0;
 
+   Q_M_dot << 0, 0, 0, 0;
+   Q_M_dot_2 << 0, 0, 0, 0;
+
    Q_M_A << 0, 1, 0, 0,
            0, 0, 1, 0,
            0, 0, 0, 1,
-           - position_i_gain * Cut_Off_Freq2 / position_d_gain, - (position_p_gain * Cut_Off_Freq2 + sqrt(2) * position_i_gain * Cut_Off_Freq) / position_d_gain, - (position_d_gain * Cut_Off_Freq2 + sqrt(2) * position_p_gain * Cut_Off_Freq + position_i_gain) / position_d_gain, - (position_p_gain + sqrt(2) * position_d_gain * Cut_Off_Freq) / position_d_gain;
+           - position_i_gain * Cut_Off_Freq2 / position_d_gain, 
+           - (position_p_gain * Cut_Off_Freq2 + sqrt(2) * position_i_gain * Cut_Off_Freq) / position_d_gain, 
+           - (position_d_gain * Cut_Off_Freq2 + sqrt(2) * position_p_gain * Cut_Off_Freq + position_i_gain) / position_d_gain, 
+           - (position_p_gain + sqrt(2) * position_d_gain * Cut_Off_Freq) / position_d_gain;
 
    Q_M_B << 0, 0, 0, 1;
 
-   Q_M_C << Cut_Off_Freq2* position_i_gain / position_d_gain, Cut_Off_Freq2* position_p_gain / position_d_gain, Cut_Off_Freq2, Cut_Off_Freq2* polar_moment_1 / position_d_gain;
+   Q_M_C << Cut_Off_Freq2* position_i_gain / position_d_gain, 
+            Cut_Off_Freq2* position_p_gain / position_d_gain, 
+            Cut_Off_Freq2, 
+            Cut_Off_Freq2* polar_moment_1 / position_d_gain;
 
+  Q_M_C = Q_M_C.transpose(); // 1 X 4
 
-
-  Q_angle_d.resize(2);
-  Q_angle_d_dot.resize(2);
-  Q_angle_d_2.resize(2);
-  Q_angle_d_dot_2.resize(2);  
-  Q_angle_d_A.resize(2, 2);
-  Q_angle_d_B.resize(2);
-  Q_angle_d_C.resize(2);
+  // Q_angle_d.resize(2);
+  // Q_angle_d_dot.resize(2);
+  // Q_angle_d_2.resize(2);
+  // Q_angle_d_dot_2.resize(2);  
+  // Q_angle_d_A.resize(2, 2);
+  // Q_angle_d_B.resize(2);
+  // Q_angle_d_C.resize(2);
 
 
 
   Q_angle_d << 0, 0;
   Q_angle_d_2 << 0, 0;
+  Q_angle_d_dot << 0, 0;
+  Q_angle_d_dot_2 << 0, 0;
   Q_angle_d_A << 0, 1,
                -Cut_Off_Freq2, -sqrt(2) * Cut_Off_Freq;
 
@@ -121,10 +137,12 @@ TorqJ::TorqJ()
 
   Q_angle_d_C << 1, 0;
 
-  Q_M = Q_M.transpose();
-  Q_angle_d = Q_angle_d.transpose();
-  Q_M_2 = Q_M.transpose();
-  Q_angle_d_2 = Q_angle_d.transpose();
+  Q_angle_d_C = Q_angle_d_C.transpose(); // 1 X 2
+
+  // Q_M = Q_M.transpose();
+  // Q_angle_d = Q_angle_d.transpose();
+  // Q_M_2 = Q_M.transpose();
+  // Q_angle_d_2 = Q_angle_d.transpose();
 
 }
 
@@ -185,11 +203,11 @@ void TorqJ::calc_des()
 
 
 //-------커맨드 생성기------//
-  // i++;
-  // double Amp = 0.05;
-  // double period = 8;
-  // X_cmd[0] = Amp * (sin(2* M_PI * 0.005 * i / period) + 1);
-  // X_cmd[1] = 0.2;
+   i++;
+   double Amp = 0.08;
+   double period = 8;
+   X_cmd[0] = Amp * (sin(2* M_PI * 0.005 * i / period) + 1);
+   X_cmd[1] = 0.15;
 //--------------------------------------
 
   JT.resize(2,2);
@@ -200,34 +218,54 @@ void TorqJ::calc_des()
   angle_ref[0] = atan(X_cmd[1] / X_cmd[0]) - atan(l2* sin(angle_ref[1]) / (l1 + l2 * cos(angle_ref[1])));
   FK_EE_pos = EE_pos(angle_measured[0], angle_measured[1]);
 
-//  std::cout<<angle_measured<<std::endl<<"angle_measuredangle_measured"<<std::endl;
-//  std::cout<<angle_ref<<std::endl<<"angle_refangle_refangle_ref"<<std::endl;
-//  std::cout<<X_cmd - FK_EE_pos<<std::endl<<"POSITIONERROR_POSITIONERROR"<<std::endl;
   DoB();
 }
 
 void TorqJ::DoB()
 {
-  for (int i =0; i<2; i++)
-{
+
+  std::cout<<angle_d<<std::endl<<"angle_d"<<std::endl;
+  std::cout<<angle_d_lpf<<std::endl<<"angle_d_lpf"<<std::endl;
+  std::cout<<d_hat<<std::endl<<"d_hat"<<std::endl;
+
+  // 1번 motor
   //State space (Gn)//
-  Q_M_dot = Q_M_A * Q_M + Q_M_B * angle_measured[i];
+  Q_M_dot = Q_M_A * Q_M + Q_M_B * angle_measured[0];
   Q_M += Q_M_dot * time_loop;
-  angle_d_hat[i] = Q_M_C.dot(Q_M);
+  angle_d_hat[0] = Q_M_C.dot(Q_M); // 여기까지 잘 나오는 거 확인
+
 
   //State space(theta_d) //
-  Q_angle_d_dot = Q_angle_d_A * Q_angle_d + Q_angle_d_B * angle_d[i];
+  Q_angle_d_dot = Q_angle_d_A * Q_angle_d + Q_angle_d_B * angle_d[0]; // 13:40 Q_angle_d, angle_d가 nan
   Q_angle_d += Q_angle_d_dot * time_loop;
-  angle_d_lpf[i] = Q_angle_d_C.dot(Q_angle_d);
+  angle_d_lpf[0] = Q_angle_d_C.dot(Q_angle_d);
 
 
-  d_hat[i] = angle_d_hat[i] - angle_d_lpf[i]; //d_hat: 추정된 외란
-  angle_d[i] = angle_ref[i] - d_hat[i];
-}
+  d_hat[0] = angle_d_hat[0] - angle_d_lpf[0]; //d_hat: 추정된 외란 
+
+    // 14:19 angle_d_hat 잘 나옴 // 14:20 angle_d_lpf가 nan
+  //angle_d[0] = angle_ref[0] - d_hat[0]; // 14:17 d_hat이 nan
+  angle_d[0] = angle_ref[0] - d_hat[0];
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  
+  // 2번 motor
+  //State space (Gn)//
+  Q_M_dot_2 = Q_M_A * Q_M_2 + Q_M_B * angle_measured[1];
+  Q_M_2 += Q_M_dot_2 * time_loop;
+  angle_d_hat[1] = Q_M_C.dot(Q_M_2); // 여기까지 잘 나오는 거 확인
+  
+
+  //State space(theta_d) //
+  Q_angle_d_dot_2 = Q_angle_d_A * Q_angle_d_2 + Q_angle_d_B * angle_d[1]; // 13:40 Q_angle_d, angle_d가 nan
+  Q_angle_d_2 += Q_angle_d_dot_2 * time_loop;
+  angle_d_lpf[1] = Q_angle_d_C.dot(Q_angle_d_2);
 
 
-  std::cout<<angle_d_lpf<<std::endl<<"angle_d_lpfangle_d_lpf"<<std::endl;
-  std::cout<<angle_d<<std::endl<<"angle_dangle_dangle_d"<<std::endl;
+  d_hat[1] = angle_d_hat[1] - angle_d_lpf[1]; //d_hat: 추정된 외란 
+    // 14:19 angle_d_hat 잘 나옴 // 14:20 angle_d_lpf가 nan
+  angle_d[1] = angle_ref[1] - d_hat[1]; // 14:17 d_hat이 nan
+
+  FK_EE_pos = EE_pos(angle_measured[0], angle_measured[1]);
 
 }
 /*  void TorqJ::second_order_butterworth()
@@ -342,19 +380,20 @@ void TorqJ::PublishCmdNMeasured()
 
   // tau_des를 publish
   joint_cmd.header.stamp = ros::Time::now();
-  joint_cmd.position.push_back(angle_ref[0]); // 커맨드포지션
-  joint_cmd.position.push_back(angle_ref[1]); // 측정포지션
+  joint_cmd.position.push_back(angle_d[0]); // 커맨드포지션
+  joint_cmd.position.push_back(angle_d[1]); // 측정포지션
   joint_cmd.velocity.push_back(X_error_p[0]); // 포지션 에러
   joint_cmd.velocity.push_back(bw_2nd_output[2]); // 포지션 에러 필터값
-  joint_cmd.effort.push_back(tau_des[0]); // joint space
-  joint_cmd.effort.push_back(tau_des[1]); // joint space
+  joint_cmd.effort.push_back(angle_d[0]); // joint space
+  joint_cmd.effort.push_back(angle_ref[0]); // joint space
+
   joint_command_pub_.publish(joint_cmd);
 
   joint_measured.header.stamp = ros::Time::now();
-  joint_measured.position.push_back(angle_ref[0]); // 포지션 에러값
-  joint_measured.position.push_back(angle_d[0]); // 포지션 에러 필터값 
-  joint_measured.velocity.push_back(tau_des[0] + stiction_gain[0]); // 
-  joint_measured.velocity.push_back(u_fc[0] + tau_des[0]);
+  joint_measured.position.push_back(FK_EE_pos[0]); // 포지션 에러값
+  joint_measured.position.push_back(X_cmd[0]); // 포지션 에러 필터값 
+  joint_measured.velocity.push_back(FK_EE_pos[1]); // 
+  joint_measured.velocity.push_back(X_cmd[1]);
   joint_measured_pub_.publish(joint_measured);
 }
 
@@ -370,6 +409,7 @@ int main(int argc, char **argv)
 
 	time_i = ros::Time::now().toSec();
 
+
   while (ros::ok())
   {
     time_f = ros::Time::now().toSec();
@@ -380,6 +420,7 @@ int main(int argc, char **argv)
     torqJ.calc_taudes();
     torqJ.PublishCmdNMeasured();
     ros::spinOnce();
+
     loop_rate.sleep();
   }
 

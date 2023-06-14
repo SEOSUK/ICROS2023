@@ -73,9 +73,9 @@ add_executable(Admittance_TwoLink.cpp src/Admittance_TwoLink.cpp)
 add_dependencies(Admittance_TwoLink.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(Admittance_TwoLink.cpp ${catkin_LIBRARIES})
 
-add_executable(torque_jacobian.cpp src/torque_jacobian.cpp)
-add_dependencies(torque_jacobian.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(torque_jacobian.cpp ${catkin_LIBRARIES})
+add_executable(torque_jacobian src/torque_jacobian.cpp)
+add_dependencies(torque_jacobian ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(torque_jacobian ${catkin_LIBRARIES})
 
 add_executable(torque_jacobian_velocity.cpp src/torque_jacobian_velocity.cpp)
 add_dependencies(torque_jacobian_velocity.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
