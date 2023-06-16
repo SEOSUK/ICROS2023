@@ -42,18 +42,22 @@ class TorqJ
 
 
 //----------Link Lengths---------//
-	double Link1 = 0.12409;
-	double Link2 = 0.108;
+	double Link1 = 0.10375;
+	double Link2 = 0.13634;
+	double l1 = 0.10375;
+	double l2 = 0.13634;
 
   //----------Link Lengths---------//
-	double CoM1 = 0.08092;
-	double CoM2 = 0.114;
-	double delta = 0.237;
-	double mass1 = 0.107;
-	double mass2 = 0.296;
+	double CoM1 = 0.07821;
+	double CoM2 = 0.1117;
+	double delta = 0.261;
+	double mass1 = 0.10772;
+	double mass2 = 0.29951;
+  double Kt_1 = 1;
+  double Kt_2 = 1;
 
-  double offset_1 = 0;
-  double offset_2 = 0; 
+  double offset_1 = 2.62;
+  double offset_2 = 0.; 
 
   Eigen::Vector2d X_ref;
   Eigen::Vector2d X_cmd;
@@ -101,12 +105,15 @@ class TorqJ
   Eigen::Vector2d angle_d_hat;
   Eigen::Vector2d angle_d_lpf;
   Eigen::Vector2d d_hat;
+  Eigen::Vector2d angle_d_safe;
+
 
   double position_p_gain;
   double position_i_gain;
   double position_d_gain;
   double polar_moment_1;
   double polar_moment_2;
+  
   double Cut_Off_Freq2;
 
   Eigen::Vector4d Q_M;
@@ -156,6 +163,10 @@ class TorqJ
   Eigen::Vector2d Y_dot_from_model_matrix;
   Eigen::Vector2d position_from_model;
 
+  //--For safe--//
+  Eigen::Vector2d angle_safe;
+  Eigen::Vector2d angle_max;
+  Eigen::Vector2d angle_min;
   double virtual_mass_x;
   double virtual_damper_x;
   double virtual_spring_x;
@@ -174,7 +185,12 @@ class TorqJ
   Eigen::Vector3d bw_4th_input;
   Eigen::Vector2d velocity_filtered;
 
+  Eigen::Vector3d bw2_filtered_current_1_input;
+  Eigen::Vector3d bw2_filtered_current_1_output;
+  Eigen::Vector3d bw2_filtered_current_2_input;
+  Eigen::Vector3d bw2_filtered_current_2_output;
 
+  Eigen::Vector2d filtered_current;
 
 
   double wc;
@@ -186,6 +202,7 @@ class TorqJ
 
   double cut_off_freq;
   double cut_off_freq_4th;
+  double cut_off_freq_current;
   double b0_4th;
   double b1_4th;
   double b2_4th;
@@ -225,6 +242,12 @@ class TorqJ
   void calc_des();
   void calc_taudes();
   void PublishCmdNMeasured();
+  void DoB();
+  void Calc_Ext_Force();
+  void Admittance_control();
+  void angle_safe_func();
+  void second_order_butterworth();
+
 
  private:
   /*****************************************************************************
@@ -254,12 +277,10 @@ class TorqJ
   ros::Subscriber forwardkinematics_sub_;
   ros::Subscriber joint_states_sub_;
 
-
-
     static Eigen::MatrixXd EE_pos(double theta_1, double theta_2)
 {
-    double l1 = 0.12409;
-    double l2 = 0.108;
+	double l1 = 0.10375;
+	double l2 = 0.13634;
     double cos1 = cos(theta_1);
     double cos2 = cos(theta_2);
     double sin1 = sin(theta_1);
@@ -280,8 +301,8 @@ class TorqJ
 
   static Eigen::MatrixXd Jacobian(double theta_1, double theta_2)
 {
-    double l1 = 0.12409;
-    double l2 = 0.108;
+	double l1 = 0.10375;
+	double l2 = 0.13634;
     double cos1 = cos(theta_1);
     double cos2 = cos(theta_2);
     double sin1 = sin(theta_1);
@@ -307,14 +328,10 @@ class TorqJ
   void poseCallback(const geometry_msgs::Twist::ConstPtr &msg);
   void commandCallback(const sensor_msgs::JointState::ConstPtr &msg);
   void jointCallback(const sensor_msgs::JointState::ConstPtr &msg);
-  void second_order_butterworth();
   void fourth_order_butterworth();
   void friction_compen_pulse();
-  void second_order_butterworth_();
   void stiction_gravity_compensator();
-  void DoB();
-  void Calc_Ext_Force();
-  void Admittance_control();
+
   //void EEpositionCallback(const dynamixel_workbench_msgs::EECommand::Request &req, dynamixel_workbench_msgs::EECommand::Response &res);
   //void goaljointCallback(const sensor_msgs::JointState::ConstPtr &msg);
 

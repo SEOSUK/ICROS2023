@@ -1,11 +1,23 @@
 <launch>
 
 <!--For DoB&Current based position control-->
-  <arg name="position_p_gain"          default="50"/>
+  <arg name="position_p_gain"          default="600"/>
   <arg name="position_i_gain"          default="0"/>
-  <arg name="position_d_gain"          default="5"/>
-  <arg name="polar_moment"             default="0.027"/>
+  <arg name="position_d_gain"          default="400"/>
+  <arg name="polar_moment_1"             default="0.0027"/>
+  <arg name="polar_moment_2"             default="0.0027"/>
   <arg name="Cut_Off_Freq"             default="5"/>
+
+  <arg name="Virtual_mass_x"              default="5.0"/>
+  <arg name="Virtual_damper_x"            default="0.1"/>
+  <arg name="Virtual_spring_x"            default="0.5"/>
+
+  <arg name="Virtual_mass_y"              default="100.0"/>
+  <arg name="Virtual_damper_y"            default="100.0"/>
+  <arg name="Virtual_spring_y"            default="100.0"/>
+
+  <arg name="cut_off_freq_current"       default="20"/>
+
 
 <!--end-->
 
@@ -25,7 +37,6 @@
   <arg name="VY_D_gain"         default="0"/>
 
   <arg name="Error_Gain"           default="3"/>
-  <arg name="cut_off_freq_4th"     default="50"/>
   <arg name="damping_const"        default="0.1"/>
 
   <arg name="stiction_alpha"       default="13.0"/>
@@ -38,7 +49,6 @@
   <param name="position_i_gain"        value="$(arg position_i_gain)"/>
   <param name="position_d_gain"        value="$(arg position_d_gain)"/>
   <param name="Cut_Off_Freq"           value="$(arg Cut_Off_Freq)"/>
-  <param name="polar_moment"           value="$(arg polar_moment)"/>
 
   <param name="robot_name"    value="$(arg robot_name)"/>
 
@@ -56,8 +66,11 @@
 
   <param name="Cut_Off_Freq"        value="$(arg Cut_Off_Freq)"/>
   <param name="Error_Gain"        value="$(arg Error_Gain)"/>
-  <param name="cut_off_freq_4th"        value="$(arg cut_off_freq_4th)"/>
+  <param name="cut_off_freq_current"        value="$(arg cut_off_freq_current)"/>
   <param name="damping_const"        value="$(arg damping_const)"/>
+
+  <param name="polar_moment_1"        value="$(arg polar_moment_1)"/>
+  <param name="polar_moment_2"        value="$(arg polar_moment_2)"/>
 
 
   <param name="stiction_alpha"        value="$(arg stiction_alpha)"/>
