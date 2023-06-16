@@ -345,8 +345,8 @@ void TorqJ::calc_des()
 
 
   //-----Inverse Kinematics-----//
-    angle_ref[1] = acos((pow(X_cmd[0], 2) + pow(X_cmd[1], 2) - pow(Link1, 2) - pow(Link2, 2)) / (2 * Link1 * Link2));
-    angle_ref[0] = atan(X_cmd[1] / X_cmd[0]) - atan(Link2 * sin(angle_ref[1]) / (Link1 + Link2 * cos(angle_ref[1])));
+    angle_ref[1] = acos((pow(X_ref[0], 2) + pow(X_ref[1], 2) - pow(Link1, 2) - pow(Link2, 2)) / (2 * Link1 * Link2));
+    angle_ref[0] = atan(X_ref[1] / X_ref[0]) - atan(Link2 * sin(angle_ref[1]) / (Link1 + Link2 * cos(angle_ref[1])));
     
     DoB();
     calc_taudes();
