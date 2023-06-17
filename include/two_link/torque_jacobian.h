@@ -44,9 +44,7 @@ class TorqJ
 //----------Link Lengths---------//
 	double Link1 = 0.10375;
 	double Link2 = 0.13634;
-	double l1 = 0.10375;
-	double l2 = 0.13634;
-
+  double Link3 = 0.104;
   //----------Link Lengths---------//
 	double CoM1 = 0.07821;
 	double CoM2 = 0.1117;
@@ -63,7 +61,7 @@ class TorqJ
   Eigen::Vector2d X_cmd;
   Eigen::Vector2d X_measured;
   Eigen::Vector2d V_measured;
-  Eigen::Vector2d angle_measured;
+  Eigen::Vector3d angle_measured;
   Eigen::Vector2d theta_dot;
 
   Eigen::Vector2d Position_P_gain;
@@ -88,33 +86,36 @@ class TorqJ
   Eigen::Vector2d V_PID;
   Eigen::Vector2d error_gain;
 
-  Eigen::Matrix2d J;
-  Eigen::Matrix2d JT;
+  Eigen::MatrixXd J;
+  Eigen::MatrixXd JT;
 
   //Eigen::MatrixXd q_dot;
   Eigen::Vector2d tau_des;
-  Eigen::Vector2d angle_ref;
-  Eigen::Vector2d tau_gravity; //중력에 의해 조인트에 가해지는 토크
+  Eigen::Vector3d angle_ref;
+  Eigen::Vector3d tau_gravity; //중력에 의해 조인트에 가해지는 토크
   Eigen::Vector2d tau_loop;
   Eigen::Vector2d velocity_measured;
   Eigen::Vector2d stiction_gain;
   Eigen::Vector2d FK_EE_pos;
+  Eigen::Vector2d POSITION_2;
 
   //--DoB--//
-  Eigen::Vector2d angle_d;
+  Eigen::Vector3d angle_d;
   Eigen::Vector2d angle_d_hat;
   Eigen::Vector2d angle_d_lpf;
   Eigen::Vector2d d_hat;
   Eigen::Vector2d angle_d_safe;
-
+  Eigen::Vector3d angle_command;
 
   double position_p_gain;
   double position_i_gain;
   double position_d_gain;
   double polar_moment_1;
   double polar_moment_2;
-  
+  double theta_d;
   double Cut_Off_Freq2;
+  double D;
+  double r2;
 
   Eigen::Vector4d Q_M;
   Eigen::Vector4d Q_M_dot;
@@ -135,12 +136,12 @@ class TorqJ
 //--end--//
 
 //--External_Force_Estimation--//
-  Eigen::Vector2d tau_measured;
-  Eigen::Vector2d hysteresis_max;
-  Eigen::Vector2d hysteresis_min;
-  Eigen::Vector2d tau_ext;
+  Eigen::Vector3d tau_measured;
+  Eigen::Vector3d hysteresis_max;
+  Eigen::Vector3d hysteresis_min;
+  Eigen::Vector3d tau_ext;
   Eigen::Vector2d Force_ext;
-  Eigen::Matrix2d JTI;
+  Eigen::MatrixXd JTI;
 
 //--Admittance Control--//
   Eigen::Matrix2d A_x;
@@ -164,9 +165,9 @@ class TorqJ
   Eigen::Vector2d position_from_model;
 
   //--For safe--//
-  Eigen::Vector2d angle_safe;
-  Eigen::Vector2d angle_max;
-  Eigen::Vector2d angle_min;
+  Eigen::Vector3d angle_safe;
+  Eigen::Vector3d angle_max;
+  Eigen::Vector3d angle_min;
   double virtual_mass_x;
   double virtual_damper_x;
   double virtual_spring_x;
@@ -189,8 +190,12 @@ class TorqJ
   Eigen::Vector3d bw2_filtered_current_1_output;
   Eigen::Vector3d bw2_filtered_current_2_input;
   Eigen::Vector3d bw2_filtered_current_2_output;
+  Eigen::Vector3d bw2_filtered_current_3_input;
+  Eigen::Vector3d bw2_filtered_current_3_output;
 
-  Eigen::Vector2d filtered_current;
+
+
+  Eigen::Vector3d filtered_current;
 
 
   double wc;
@@ -277,53 +282,74 @@ class TorqJ
   ros::Subscriber forwardkinematics_sub_;
   ros::Subscriber joint_states_sub_;
 
-    static Eigen::MatrixXd EE_pos(double theta_1, double theta_2)
+
+  static Eigen::MatrixXd EE_pos(double theta_1, double theta_2, double theta_3)
 {
 	double l1 = 0.10375;
 	double l2 = 0.13634;
+  double l3 = 0.104;
     double cos1 = cos(theta_1);
     double cos2 = cos(theta_2);
+    double cos3 = cos(theta_3);
     double sin1 = sin(theta_1);
     double sin2 = sin(theta_2);
+    double sin3 = sin(theta_3);
     double cos12 = cos(theta_1 + theta_2);
     double sin12 = sin(theta_1 + theta_2);
+    double cos123 = cos(theta_1 + theta_2 + theta_3);
+    double sin123 = sin(theta_1 + theta_2 + theta_3);
+
 
     Eigen::MatrixXd EE_pos(2,1);
 
     EE_pos <<
     // X
-    l1 * cos1 + l2 * cos12,
+    l2 * cos12 + l1 * cos1 + l3 * cos123,
     // Y
-    l1 * sin1 + l2 * sin12;
+    l2 * sin12 + l1 * sin1 + l3 * sin123;
 
     return EE_pos;
 };
 
-  static Eigen::MatrixXd Jacobian(double theta_1, double theta_2)
+  static Eigen::MatrixXd Jacobian(double theta_1, double theta_2, double theta_3)
 {
 	double l1 = 0.10375;
 	double l2 = 0.13634;
+  double l3 = 0.104;
     double cos1 = cos(theta_1);
     double cos2 = cos(theta_2);
     double sin1 = sin(theta_1);
     double sin2 = sin(theta_2);
     double cos12 = cos(theta_1 + theta_2);
     double sin12 = sin(theta_1 + theta_2);
+    double sin123 = sin(theta_1 + theta_2 + theta_3);
+    double cos123 = cos(theta_1 + theta_2 + theta_3);
 
-    Eigen::MatrixXd J(2,2);
+
+    Eigen::MatrixXd J(2,3);
 
     J <<
     // 1X1
-    -l1 * sin1 - l2 * sin12,
+    -l2 * sin12 - l1 * sin1 - l3 * sin123,
     // 1X2
-    -l2 * sin12,
+    -l2 * sin12 - l3 * sin123,
+    // 1X3
+    -l3 * sin123,
     // 2X1
-    l1 * cos1 + l2 * cos12,
+    l2 * cos12 + l1 * cos1 + l3 * cos123,
     // 2X2
-    l2 * cos12;
+    l2 * cos12 + l3 * cos123,
+    // 2X3
+    l3 * cos123;
 
     return J;
 };
+
+template<typename Derived>
+Derived dampedPinv(const Eigen::MatrixBase<Derived>& a, double rho = 1e-4) 
+{
+	return a.transpose() * (a * a.transpose() + rho * rho * Eigen::MatrixBase<Derived>::Identity(a.rows(), a.rows())).inverse();
+}
 
   void poseCallback(const geometry_msgs::Twist::ConstPtr &msg);
   void commandCallback(const sensor_msgs::JointState::ConstPtr &msg);
