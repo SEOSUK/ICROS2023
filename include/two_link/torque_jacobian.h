@@ -11,6 +11,7 @@
 #include <dynamixel_workbench_msgs/DasomDynamixel.h>
 //#include <two_link/Torqbian.h>
 #include <dynamixel_workbench_msgs/EECommand.h>
+#include "two_link/movingFlag.h"
 
 #define PI 3.14159256359
 
@@ -243,6 +244,11 @@ class TorqJ
   double stiction_alpha;
   double stiction_k;
 
+//--Service Flag--//
+  bool movingFlag = false;
+
+
+
 
   void calc_des();
   void calc_taudes();
@@ -252,7 +258,8 @@ class TorqJ
   void Admittance_control();
   void angle_safe_func();
   void second_order_butterworth();
-
+  bool movingServiceCallback(two_link::movingFlag::Request  &req,
+          two_link::movingFlag::Response &res);
 
  private:
   /*****************************************************************************
@@ -281,6 +288,9 @@ class TorqJ
   ros::Subscriber EE_command_sub_;
   ros::Subscriber forwardkinematics_sub_;
   ros::Subscriber joint_states_sub_;
+  ros::ServiceServer movingService;
+
+
 
 
   static Eigen::MatrixXd EE_pos(double theta_1, double theta_2, double theta_3)
@@ -350,6 +360,7 @@ Derived dampedPinv(const Eigen::MatrixBase<Derived>& a, double rho = 1e-4)
 {
 	return a.transpose() * (a * a.transpose() + rho * rho * Eigen::MatrixBase<Derived>::Identity(a.rows(), a.rows())).inverse();
 }
+
 
   void poseCallback(const geometry_msgs::Twist::ConstPtr &msg);
   void commandCallback(const sensor_msgs::JointState::ConstPtr &msg);

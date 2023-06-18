@@ -1,9 +1,9 @@
 <launch>
 
 <!--For DoB&Current based position control-->
-  <arg name="position_p_gain"          default="600"/>
+  <arg name="position_p_gain"          default="400"/>
   <arg name="position_i_gain"          default="0"/>
-  <arg name="position_d_gain"          default="600"/>
+  <arg name="position_d_gain"          default="400"/>
   <arg name="polar_moment_1"             default="0.0027"/>
   <arg name="polar_moment_2"             default="0.0027"/>
   <arg name="Cut_Off_Freq"             default="5"/>
@@ -16,7 +16,7 @@
   <arg name="virtual_damper_y"            default="0.1"/>
   <arg name="virtual_spring_y"            default="0.1"/>
 
-  <arg name="cut_off_freq_current"       default="20"/>
+  <arg name="cut_off_freq_current"       default="10"/>
 
 
 <!--end-->

@@ -33,6 +33,7 @@ add_message_files(
 add_service_files(
   FILES
   param.srv
+  movingFlag.srv
 )
 ################################################
 ## Declare ROS messages, services and actions ##

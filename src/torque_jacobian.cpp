@@ -17,10 +17,12 @@
 
 #include "two_link/torque_jacobian.h"
 
+
 double time_loop = 0;
 double time_f = 0;
 double time_i = 0;
-int i = 0;
+double i = 0;
+double j = 0;
 int safety = 0;
 
 TorqJ::TorqJ()
@@ -75,12 +77,16 @@ TorqJ::TorqJ()
   virtual_damper << virtual_damper_x, virtual_damper_y;
   virtual_spring << virtual_spring_x, virtual_spring_y;
 
-
-
-
   // std::cout<<V_gain<<std::endl<<"---------------------------------------"<<std::endl;
 
   ROS_INFO("TorqJ node start");
+  ROS_INFO("===========================================");
+  ROS_INFO("[3.2s] rising to init pose");
+  ROS_INFO("[5.0s] DOB On");
+  ROS_INFO("[10.0s] Force estimation start");
+  ROS_INFO("===========================================");
+  ROS_INFO("==============service======================");
+  ROS_INFO("movingService: Move sinusoidal");
 
   angle_ref << 0, 0, 0;
   X_ref << 0.0, 0.0;
@@ -182,13 +188,12 @@ TorqJ::TorqJ()
   // 잘수정해보자//
   hysteresis_max << 1.0, 1.0, 1.0;
   hysteresis_min << -1.0, -1.0, -1.0;
-  angle_max << 1.6, 1.8, 0.75;
+  angle_max << 1.6, 1.9, 0.75;
   angle_min << -0.7, -1.8, -2;
 
-//  X_ref[0] = 0.05;
-//  X_ref[1] = 0.22;
+
   theta_d = M_PI/2;
-//0.94, 0.70
+
 }
 
 TorqJ::~TorqJ()
@@ -209,6 +214,9 @@ void TorqJ::initSubscriber()
   EE_command_sub_ = node_handle_.subscribe("/goal_EE_position", 10, &TorqJ::commandCallback, this);
   forwardkinematics_sub_ = node_handle_.subscribe("/EE_pose", 10, &TorqJ::poseCallback, this);
   joint_states_sub_ = node_handle_.subscribe("/joint_states", 10, &TorqJ::jointCallback, this);
+
+
+  movingService = node_handle_.advertiseService("/movingService", &TorqJ::movingServiceCallback, this);
 }
 
 void TorqJ::commandCallback(const sensor_msgs::JointState::ConstPtr &msg)
@@ -241,6 +249,7 @@ void TorqJ::jointCallback(const sensor_msgs::JointState::ConstPtr &msg)
   // Jacobian 계산하기()
 
   FK_EE_pos = EE_pos(angle_measured[0], angle_measured[1], angle_measured[2]);
+  ROS_WARN("FK: %lf, %lf", FK_EE_pos[0], FK_EE_pos[1]);
 }
 
 
@@ -336,7 +345,7 @@ void TorqJ::Calc_Ext_Force()
   else if (tau_ext[2] < hysteresis_min[2]) tau_ext[2] -= hysteresis_min[2];
 
 
-     if(safety > 1000) Force_ext = JTI * tau_ext;
+     if(safety > 2000) Force_ext = JTI * tau_ext;
      else Force_ext << 0, 0;
 }
 
@@ -368,12 +377,31 @@ void TorqJ::calc_des()
 {
 
   //-----커맨드 생성기-----//
-   i++;
+   
+if(i < 600)
+{
+  i++;
+   X_ref[0] = 0.114329;
+   X_ref[1] = 0.22 + i / 20000;  //초기값: 0.218, 최종값: 0.25
+}
+
+
+if(movingFlag && safety > 1000)
+{
+  j++;
+
    double Amp = 0.05;
-   double period = 50;
-   X_ref[0] = Amp * (sin(2* M_PI * 0.005 * i / period));
-   X_ref[1] = 0.3;
-//0.851175, 1.244680, -0.525059
+   double period = 5;
+   X_ref[0] = Amp * (sin(2* M_PI * 0.005 * j / period + M_PI/2)) + 0.114329 - Amp;
+   X_ref[1] = 0.25;
+
+}
+// [ INFO] [1687091726.145587992]: -0.217825, 1.685845, 0.111981
+// [ WARN] [1687091726.145748576]: FK: 0.114329, 0.217195
+
+// [ INFO] [1687091818.084077815]: 0.127320, 1.397457, 0.042951
+// [ WARN] [1687091818.084290789]: FK: 0.109501, 0.253369
+
 
 
   //-----Inverse Kinematics-----//
@@ -437,36 +465,55 @@ void TorqJ::DoB()
 
 void TorqJ::angle_safe_func()
 {
-  angle_command = angle_d;   //DOB할거면 이거 angle_d로!!
-  //--For warning message--//
-  if (std::isnan(angle_command[0])) ROS_ERROR("angle 1 is NaN!!");
-  else if (angle_command[0] > angle_max[0] || angle_command[0] < angle_min[0]) ROS_ERROR("angle 1 LIMIT");
+    if (safety < 1000) 
+    {
+      angle_command = angle_ref;
+    
+      Q_M << 0, 0, 0, 0;
+      Q_M_2 << 0, 0, 0, 0;
+      Q_angle_d << 0, 0;
+      Q_angle_d_2 << 0, 0;
+      
+    }
+    else angle_command = angle_d;
 
-  if (std::isnan(angle_command[1])) ROS_ERROR("angle 2 is NaN!!");
-  else if (angle_command[1] > angle_max[1] || angle_command[1] < angle_min[1]) ROS_ERROR("angle 2 LIMIT");
-
-  if (std::isnan(angle_command[2])) ROS_ERROR("angle 3 is NaN!!");
-  else if (angle_command[2] > angle_max[2] || angle_command[2] < angle_min[2]) ROS_ERROR("angle 3 LIMIT");
-
-
-
-  //--for constraint--//
-  if (
-      (std::isnan(angle_command[0]) && std::isnan(angle_command[1]) && std::isnan(angle_command[2])) ||
-      (angle_command[0] > angle_max[0] || angle_command[0] < angle_min[0]) ||
-      (angle_command[1] > angle_max[1] || angle_command[1] < angle_min[1]) ||
-      (angle_command[2] > angle_max[2] || angle_command[2] < angle_min[2])
-      )
+  if (safety < 1300)
   {
-    ROS_INFO("IK error");
+      angle_safe[0] = angle_command[0];
+      angle_safe[1] = angle_command[1];
+      angle_safe[2] = angle_command[2];
   }
   else
   {
-    angle_safe[0] = angle_command[0];
-    angle_safe[1] = angle_command[1];
-    angle_safe[2] = angle_command[2];
-  }
+    //--For warning message--//
+    if (std::isnan(angle_command[0])) ROS_ERROR("angle 1 is NaN!!");
+    else if (angle_command[0] > angle_max[0] || angle_command[0] < angle_min[0]) ROS_ERROR("angle 1 LIMIT");
 
+    if (std::isnan(angle_command[1])) ROS_ERROR("angle 2 is NaN!!");
+    else if (angle_command[1] > angle_max[1] || angle_command[1] < angle_min[1]) ROS_ERROR("angle 2 LIMIT");
+
+    if (std::isnan(angle_command[2])) ROS_ERROR("angle 3 is NaN!!");
+    else if (angle_command[2] > angle_max[2] || angle_command[2] < angle_min[2]) ROS_ERROR("angle 3 LIMIT");
+
+
+
+    //--for constraint--//
+    if (
+        (std::isnan(angle_command[0]) && std::isnan(angle_command[1]) && std::isnan(angle_command[2])) ||
+        (angle_command[0] > angle_max[0] || angle_command[0] < angle_min[0]) ||
+        (angle_command[1] > angle_max[1] || angle_command[1] < angle_min[1]) ||
+        (angle_command[2] > angle_max[2] || angle_command[2] < angle_min[2])
+        )
+    {
+      ROS_INFO("IK error");
+    }
+    else
+    {
+      angle_safe[0] = angle_command[0];
+      angle_safe[1] = angle_command[1];
+      angle_safe[2] = angle_command[2];
+    }
+  }
 }
 
 
@@ -482,20 +529,43 @@ void TorqJ::calc_taudes()
 }
 
 
-double j = 0;
+
+
+ bool TorqJ::movingServiceCallback(two_link::movingFlag::Request  &req,
+          two_link::movingFlag::Response &res)
+ {
+  if(movingFlag)
+  {
+    movingFlag = false;
+    ROS_INFO("movingFlag false");
+  }
+  else
+  {
+    movingFlag = true;
+    ROS_INFO("movingFlag true");
+  }
+	return true;
+ }
+
+
+
+
+
+
+
+
 void TorqJ::PublishCmdNMeasured()
 {
 
-  j ++;
   sensor_msgs::JointState joint_cmd;
   sensor_msgs::JointState joint_measured;
   // tau_des를 publish
   joint_cmd.header.stamp = ros::Time::now();
-  joint_cmd.position.push_back(0); // 커맨드포지션
-  joint_cmd.position.push_back(0); // 측정포지션
+  joint_cmd.position.push_back(angle_safe[0]); // 커맨드포지션
+  joint_cmd.position.push_back(angle_safe[1]); // 측정포지션
   joint_cmd.position.push_back(0);             // 측정포지션
   joint_cmd.position.push_back(0);             // 측정포지션
-  joint_cmd.position.push_back(0);             // 측정포지션  
+  joint_cmd.position.push_back(angle_safe[2]);             // 측정포지션  
   // joint_cmd.velocity.push_back(X_cmd[0]);    // 포지션 에러
   // joint_cmd.velocity.push_back(X_ref[0]);    // 포지션 에러 필터값
   // joint_cmd.effort.push_back(Force_ext[0]);   // joint space
