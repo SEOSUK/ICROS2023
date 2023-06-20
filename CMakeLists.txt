@@ -34,6 +34,7 @@ add_service_files(
   FILES
   param.srv
   movingFlag.srv
+  admittanceTest.srv
 )
 ################################################
 ## Declare ROS messages, services and actions ##

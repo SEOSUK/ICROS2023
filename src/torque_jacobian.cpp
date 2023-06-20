@@ -24,6 +24,7 @@ double time_i = 0;
 double i = 0;
 double j = 0;
 int safety = 0;
+int safety_force = 0;
 
 TorqJ::TorqJ()
     : node_handle_(""),
@@ -85,8 +86,13 @@ TorqJ::TorqJ()
   ROS_INFO("[5.0s] DOB On");
   ROS_INFO("[10.0s] Force estimation start");
   ROS_INFO("===========================================");
-  ROS_INFO("==============service======================");
+  ROS_INFO("==============service command=============");
   ROS_INFO("movingService: Move sinusoidal");
+  ROS_INFO("admitService: put x_m, x_d, x_k, y so on");
+  ROS_INFO("compliant?: 0.5, 2, 0, Stiff?: 1000 1000 1000");
+  ROS_INFO("------------");
+  ROS_INFO("Before you use admitService, put E.E to reference position");
+
 
   angle_ref << 0, 0, 0;
   X_ref << 0.0, 0.0;
@@ -186,10 +192,12 @@ TorqJ::TorqJ()
 
 
   // 잘수정해보자//
-  hysteresis_max << 1.0, 1.0, 1.0;
-  hysteresis_min << -1.0, -1.0, -1.0;
+  hysteresis_max << 0.35, 0.27, 0.2;
+  hysteresis_min << -0.24, -0.35, -0.2;
   angle_max << 1.6, 1.9, 0.75;
   angle_min << -0.7, -1.8, -2;
+  Force_max << 1.0, 1.0;
+  Force_min << -1.0, -1.0;
 
 
   theta_d = M_PI/2;
@@ -207,6 +215,10 @@ void TorqJ::initPublisher()
   joint_command_pub_ = node_handle_.advertise<sensor_msgs::JointState>("/goal_dynamixel_position", 10);
   joint_measured_pub_ = node_handle_.advertise<sensor_msgs::JointState>("/measured_dynamixel_position", 10);
   // joint_command_pub = node_handle_.advertise<sensor_msgs::JointState>("/goal_dynamixel_position", 10);
+  first_publish = node_handle_.advertise<geometry_msgs::Twist>("/first_publisher", 10);
+  second_publish = node_handle_.advertise<geometry_msgs::Twist>("/second_publisher", 10);
+  
+
 }
 
 void TorqJ::initSubscriber()
@@ -217,6 +229,7 @@ void TorqJ::initSubscriber()
 
 
   movingService = node_handle_.advertiseService("/movingService", &TorqJ::movingServiceCallback, this);
+  admitService = node_handle_.advertiseService("/admitService", &TorqJ::AdmittanceCallback, this);
 }
 
 void TorqJ::commandCallback(const sensor_msgs::JointState::ConstPtr &msg)
@@ -242,14 +255,13 @@ void TorqJ::jointCallback(const sensor_msgs::JointState::ConstPtr &msg)
 
   tau_measured[0] = msg->effort.at(0) * Kt_1; // Kt = 0.0044 from 자시
   tau_measured[1] = msg->effort.at(1) * Kt_2; // Kt = 0.0044 from 자시
-  tau_measured[2] = msg->effort.at(1) * Kt_2; // Kt = 0.0044 from 자시
+  tau_measured[2] = msg->effort.at(2) * Kt_2; // Kt = 0.0044 from 자시
 
 
   velocity_measured[0] = msg->velocity.at(0);
   // Jacobian 계산하기()
 
   FK_EE_pos = EE_pos(angle_measured[0], angle_measured[1], angle_measured[2]);
-  ROS_WARN("FK: %lf, %lf", FK_EE_pos[0], FK_EE_pos[1]);
 }
 
 
@@ -326,10 +338,12 @@ void TorqJ::Calc_Ext_Force()
   //---gravity model---//
   tau_gravity << (mass1 * CoM1 * cos(angle_measured[0]) + mass2 * Link1 * cos(angle_measured[0]) + mass2 * CoM2 * cos(angle_measured[0] + angle_measured[1]) + delta) * 9.81 - offset_1,
       mass2 * CoM2 * cos(angle_measured[0] + angle_measured[1] + delta) * 9.81 - offset_2,
-      0;
+      -offset_3;
 
   //---Calc Force_ext---//
-  tau_ext = filtered_current - tau_gravity;
+  tau_ext = tau_measured - tau_gravity;
+
+  tau_ext_not_deadzone = tau_ext;
 
   //---Dead Zone by hysteresis---//
   if (tau_ext[0] <= hysteresis_max[0] && tau_ext[0] >= hysteresis_min[0]) tau_ext[0] = 0;
@@ -345,8 +359,19 @@ void TorqJ::Calc_Ext_Force()
   else if (tau_ext[2] < hysteresis_min[2]) tau_ext[2] -= hysteresis_min[2];
 
 
+  Force_ext_not_deadzone = JTI * tau_ext_not_deadzone;
      if(safety > 2000) Force_ext = JTI * tau_ext;
      else Force_ext << 0, 0;
+
+  //--Force saturation--//
+  if (Force_ext[0] > Force_max[0]) Force_ext[0] = Force_max[0];
+  else if (Force_ext[0] < Force_min[0]) Force_ext[0] = Force_min[0];
+
+  if (Force_ext[1] > Force_max[1]) Force_ext[1] = Force_max[1];
+  else if (Force_ext[1] < Force_min[1]) Force_ext[1] = Force_min[1];
+
+
+
 }
 
 void TorqJ::Admittance_control()
@@ -369,6 +394,9 @@ void TorqJ::Admittance_control()
   position_from_model[1] = Y_from_model_matrix[0];
 
   X_cmd[1] = X_ref[1] - position_from_model[1];
+
+  //200 10 300
+  //200 10 80
 }
 
 
@@ -378,11 +406,11 @@ void TorqJ::calc_des()
 
   //-----커맨드 생성기-----//
    
-if(i < 600)
+if(i < 1040)
 {
   i++;
    X_ref[0] = 0.114329;
-   X_ref[1] = 0.22 + i / 20000;  //초기값: 0.218, 최종값: 0.25
+   X_ref[1] = 0.218 + i / 20000;  //초기값: 0.218, 최종값: 0.27
 }
 
 
@@ -390,12 +418,13 @@ if(movingFlag && safety > 1000)
 {
   j++;
 
-   double Amp = 0.05;
+   double Amp = 0.07;
    double period = 5;
    X_ref[0] = Amp * (sin(2* M_PI * 0.005 * j / period + M_PI/2)) + 0.114329 - Amp;
-   X_ref[1] = 0.25;
+   X_ref[1] = 0.27;
 
 }
+
 // [ INFO] [1687091726.145587992]: -0.217825, 1.685845, 0.111981
 // [ WARN] [1687091726.145748576]: FK: 0.114329, 0.217195
 
@@ -404,9 +433,16 @@ if(movingFlag && safety > 1000)
 
 
 
+
+    //  Command Safety Function
+    if (std::isnan(X_Command[0]) || std::isnan(X_Command[1])) ROS_ERROR("Inverse Kinematics Error(NaN)");
+    else X_Command = X_cmd; // Admittance or not?
+
+
+
   //-----Inverse Kinematics-----//
-POSITION_2[0] = X_ref[0] - Link3 * cos(theta_d);
-POSITION_2[1] = X_ref[1] - Link3 * sin(theta_d);
+POSITION_2[0] = X_Command[0] - Link3 * cos(theta_d);
+POSITION_2[1] = X_Command[1] - Link3 * sin(theta_d);
 
 r2 = pow(POSITION_2[0], 2) + pow(POSITION_2[1], 2);
 D = (r2 - Link1 * Link1 - Link2 * Link2) / (2 * Link1 * Link2);
@@ -476,8 +512,9 @@ void TorqJ::angle_safe_func()
       
     }
     else angle_command = angle_d;
+    //DoB safety lock
 
-  if (safety < 1300)
+  if (safety < 1300)  // Do not work safety function until 1300
   {
       angle_safe[0] = angle_command[0];
       angle_safe[1] = angle_command[1];
@@ -548,8 +585,55 @@ void TorqJ::calc_taudes()
  }
 
 
+ bool TorqJ::AdmittanceCallback(two_link::admittanceTest::Request  &req,
+          two_link::admittanceTest::Response &res)
+ {
+
+//safety = 1500;
 
 
+  virtual_mass[0] = req.x_m;
+  virtual_damper[0] = req.x_d;
+  virtual_spring[0] = req.x_k;
+  
+  virtual_mass[1] = req.y_m;
+  virtual_damper[1] = req.y_d;
+  virtual_spring[1] = req.y_k;
+
+ROS_INFO("Admittance Parameter updated!");
+ROS_INFO("x: %lf, %lf, %lf \n y: %lf, %lf, %lf", virtual_mass[0], virtual_damper[0], virtual_spring[0], virtual_mass[1], virtual_damper[1], virtual_spring[1]);
+
+  //////////////////////////////////////////
+  ////////////////Admittance////////////////
+  //////////////////////////////////////////
+  ////////////////Init Again Admittance matrix////
+  A_x << 0, 1,
+      -virtual_spring[0] / virtual_mass[0], -virtual_damper[0] / virtual_mass[0];
+
+  B_x << 0, 1 / virtual_mass[0];
+
+  C_x << 1, 0;
+
+  D_x << 0, 0;
+
+  //-----State Space Representation----//
+  A_y << 0, 1,
+      -virtual_spring[1] / virtual_mass[1], -virtual_damper[1] / virtual_mass[1];
+
+  B_y << 0, 1 / virtual_mass[1];
+
+  C_y << 1, 0;
+
+  D_y << 0, 0;
+
+//  X_from_model_matrix << 0, 0;
+//  X_dot_from_model_matrix << 0, 0;
+
+//  Y_from_model_matrix << 0, 0;
+//  Y_dot_from_model_matrix << 0, 0;
+
+	return true;
+ }
 
 
 
@@ -559,6 +643,9 @@ void TorqJ::PublishCmdNMeasured()
 
   sensor_msgs::JointState joint_cmd;
   sensor_msgs::JointState joint_measured;
+
+  geometry_msgs::Twist first_publisher;
+  geometry_msgs::Twist second_publisher;
   // tau_des를 publish
   joint_cmd.header.stamp = ros::Time::now();
   joint_cmd.position.push_back(angle_safe[0]); // 커맨드포지션
@@ -574,25 +661,60 @@ void TorqJ::PublishCmdNMeasured()
 
   joint_command_pub_.publish(joint_cmd);
 
-  joint_measured.header.stamp = ros::Time::now();
-  joint_measured.position.push_back(Force_ext[0]); // 포지션 에러값
-  joint_measured.position.push_back(Force_ext[1]);  // 포지션 에러 필터값
-  joint_measured.velocity.push_back(X_cmd[0]); //
-  joint_measured.velocity.push_back(X_ref[0]);
-  joint_measured.velocity.push_back(X_cmd[1]); //
-  joint_measured.velocity.push_back(X_ref[1]);
-  joint_measured.velocity.push_back(angle_ref[0]); //
-  joint_measured.velocity.push_back(angle_d[0]);
-  joint_measured.velocity.push_back(angle_ref[0]); //
-  joint_measured.effort.push_back(angle_d[1]);  
-  joint_measured.effort.push_back(angle_ref[1]); //
-  joint_measured.effort.push_back(tau_measured[0]);    
-  joint_measured.effort.push_back(filtered_current[0]); //
-  joint_measured.effort.push_back(tau_measured[1]);  
-  joint_measured.effort.push_back(filtered_current[1]); //
+
+  first_publisher.linear.x = Force_ext[0];
+  first_publisher.linear.y = Force_ext[1];
+  
+  first_publisher.angular.x = tau_ext[0];
+  first_publisher.angular.y = tau_ext[1];
+  first_publisher.angular.z = tau_ext[2];
 
 
-  joint_measured_pub_.publish(joint_measured);
+  second_publisher.linear.x = Force_ext_not_deadzone[0];
+  second_publisher.linear.y = Force_ext_not_deadzone[1];
+    
+  second_publisher.angular.x = tau_ext_not_deadzone[0];
+  second_publisher.angular.y = tau_ext_not_deadzone[1];
+  second_publisher.angular.z = tau_ext_not_deadzone[2];
+
+  first_publish.publish(first_publisher);
+
+  second_publish.publish(second_publisher);
+
+  // joint_measured.header.stamp = ros::Time::now();
+  // joint_measured.velocity.push_back(Force_ext[0]); // 포지션 에러값
+  // joint_measured.velocity.push_back(Force_ext[1]);  // 포지션 에러 필터값
+  // joint_measured.velocity.push_back(tau_ext[0]); //
+  // joint_measured.velocity.push_back(tau_ext[1]);
+  // joint_measured.velocity.push_back(tau_ext[2]);
+
+  // joint_measured.velocity.push_back(Force_ext_not_deadzone[0]); // 포지션 에러값
+  // joint_measured.velocity.push_back(Force_ext_not_deadzone[1]);  // 포지션 에러 필터값
+  // joint_measured.velocity.push_back(tau_ext_not_deadzone[0]); //
+  // joint_measured.velocity.push_back(tau_ext_not_deadzone[1]);
+  // joint_measured.velocity.push_back(tau_ext_not_deadzone[2]);
+
+
+  // joint_measured.velocity.push_back(angle_ref[0]); //
+  // joint_measured.velocity.push_back(angle_d[0]);
+  // joint_measured.velocity.push_back(angle_ref[1]); //
+  // joint_measured.velocity.push_back(angle_d[1]);  
+
+  // joint_measured.velocity.push_back(filtered_current[0]); //
+  // joint_measured.velocity.push_back(tau_gravity[0]);    
+  // joint_measured.velocity.push_back(filtered_current[1]); //  
+  // joint_measured.velocity.push_back(tau_gravity[1]); //
+  // joint_measured.velocity.push_back(filtered_current[2]);  
+  // joint_measured.velocity.push_back(tau_gravity[2]); //  
+
+  // joint_measured.velocity.push_back(tau_measured[0] - tau_gravity[0]);  
+  // joint_measured.velocity.push_back(tau_measured[1] - tau_gravity[1]);  
+  // joint_measured.velocity.push_back(tau_measured[2] - tau_gravity[2]); //
+  // joint_measured.velocity.push_back(Force_ext[0]); // 포지션 에러값
+  // joint_measured.velocity.push_back(Force_ext[1]);  // 포지션 에러 필터값
+  
+
+  // joint_measured_pub_.publish(joint_measured);
 }
 
 int main(int argc, char **argv)

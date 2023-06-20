@@ -12,6 +12,7 @@
 //#include <two_link/Torqbian.h>
 #include <dynamixel_workbench_msgs/EECommand.h>
 #include "two_link/movingFlag.h"
+#include "two_link/admittanceTest.h"
 
 #define PI 3.14159256359
 
@@ -56,10 +57,12 @@ class TorqJ
   double Kt_2 = 1;
 
   double offset_1 = 2.62;
-  double offset_2 = 0.; 
+  double offset_2 = 0.;
+  double offset_3 = 0.0;
 
   Eigen::Vector2d X_ref;
   Eigen::Vector2d X_cmd;
+  Eigen::Vector2d X_Command;
   Eigen::Vector2d X_measured;
   Eigen::Vector2d V_measured;
   Eigen::Vector3d angle_measured;
@@ -141,8 +144,12 @@ class TorqJ
   Eigen::Vector3d hysteresis_max;
   Eigen::Vector3d hysteresis_min;
   Eigen::Vector3d tau_ext;
+  Eigen::Vector3d tau_ext_not_deadzone;  
   Eigen::Vector2d Force_ext;
+  Eigen::Vector2d Force_ext_not_deadzone;
   Eigen::MatrixXd JTI;
+  Eigen::Vector2d Force_max;
+  Eigen::Vector2d Force_min;
 
 //--Admittance Control--//
   Eigen::Matrix2d A_x;
@@ -260,6 +267,8 @@ class TorqJ
   void second_order_butterworth();
   bool movingServiceCallback(two_link::movingFlag::Request  &req,
           two_link::movingFlag::Response &res);
+  bool AdmittanceCallback(two_link::admittanceTest::Request  &req,
+          two_link::admittanceTest::Response &res);
 
  private:
   /*****************************************************************************
@@ -289,7 +298,9 @@ class TorqJ
   ros::Subscriber forwardkinematics_sub_;
   ros::Subscriber joint_states_sub_;
   ros::ServiceServer movingService;
-
+  ros::ServiceServer admitService;
+  ros::Publisher first_publish;
+  ros::Publisher second_publish;
 
 
 
