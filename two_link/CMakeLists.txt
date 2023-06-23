@@ -57,20 +57,6 @@ include_directories(
   include
 )
 
-
-
-add_executable(Admittance_twoLink.cpp src/Admittance_twoLink.cpp)
-add_dependencies(Admittance_twoLink.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(Admittance_twoLink.cpp ${catkin_LIBRARIES})
-
-add_executable(velocity_controller.cpp src/velocity_controller.cpp)
-add_dependencies(velocity_controller.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(velocity_controller.cpp ${catkin_LIBRARIES})
-
-add_executable(velocity_tracking.cpp src/velocity_tracking.cpp)
-add_dependencies(velocity_tracking.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(velocity_tracking.cpp ${catkin_LIBRARIES})
-
 add_executable(Admittance_TwoLink.cpp src/Admittance_TwoLink.cpp)
 add_dependencies(Admittance_TwoLink.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(Admittance_TwoLink.cpp ${catkin_LIBRARIES})
@@ -78,7 +64,3 @@ target_link_libraries(Admittance_TwoLink.cpp ${catkin_LIBRARIES})
 add_executable(torque_jacobian src/torque_jacobian.cpp)
 add_dependencies(torque_jacobian ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(torque_jacobian ${catkin_LIBRARIES})
-
-add_executable(torque_jacobian_velocity.cpp src/torque_jacobian_velocity.cpp)
-add_dependencies(torque_jacobian_velocity.cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(torque_jacobian_velocity.cpp ${catkin_LIBRARIES})
