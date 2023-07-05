@@ -2,6 +2,8 @@
 ---
 Full code for ICROS 2023
 
+period: 2023.01. ~ 2023.06.
+
 thesis presentation: 2023.06.22
 
 ---
